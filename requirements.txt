@@ -1,0 +1,25 @@
+# Core dependencies
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# AI Providers
+httpx  # Para requests a APIs
+ollama  # Cliente oficial Ollama
+openai  # OpenAI API
+anthropic  # Claude API
+google-generativeai  # Gemini API
+
+# Storage y utilidades
+aiofiles
+python-multipart
+jinja2
+pyyaml
+python-dotenv
+
+# Opcional para desarrollo
+pytest
+pytest-asyncio
+black
+flake8

@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #2d2d2d;
+            padding: 1rem;
+            border-bottom: 1px solid #404040;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .config-button {
+            background: #404040;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 1rem;
+        }
+        
+        .config-button:hover {
+            background: #555;
+        }
+        
+        .config-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+        
+        .config-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #2d2d2d;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90vw;
+        }
+        
+        .config-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .form-group label {
+            font-size: 0.9rem;
+            color: #ccc;
+        }
+        
+        .form-group input, .form-group textarea {
+            background: #404040;
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        
+        .btn-secondary {
+            background: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #777;
+        }
+        
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        select {
+            background: #404040;
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 140px);
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .message {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            word-wrap: break-word;
+        }
+        
+        .user-message {
+            background: #007acc;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+        
+        .bot-message {
+            background: #2d2d2d;
+            align-self: flex-start;
+            border: 1px solid #404040;
+        }
+        
+        .input-container {
+            padding: 1rem;
+            background: #2d2d2d;
+            border-top: 1px solid #404040;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 0.75rem;
+            background: #404040;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 1rem;
+        }
+        
+        input[type="text"]:focus {
+            outline: 2px solid #007acc;
+        }
+        
+        button {
+            padding: 0.75rem 1.5rem;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        button:hover {
+            background: #005a9e;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: none;
+            color: #888;
+            font-style: italic;
+        }
+        
+        .error {
+            color: #ff6b6b;
+            padding: 0.5rem;
+            background: #2d1b1b;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">Ollama Chat</h1>
+        <div class="model-selector">
+            <label for="model-select">Modelo:</label>
+            <select id="model-select">
+                <option value="llama3.2">llama3.2</option>
+            </select>
+            <button class="config-button" id="config-button">Configuración</button>
+            <button class="config-button" id="prompts-button">Prompts</button>
+            <button class="config-button" onclick="window.location.href='/board'">🗂️ Pizarrón</button>
+        </div>
+    </div>
+    
+    <div class="chat-container">
+        <div class="messages" id="messages"></div>
+        
+        <div class="input-container">
+            <div class="input-group">
+                <input type="text" id="message-input" placeholder="Escribe tu mensaje..." autocomplete="off">
+                <button id="send-button">Enviar</button>
+                <button id="stop-button" style="display: none; background: #dc3545;">Detener</button>
+                <button id="clear-button" class="btn-secondary">Limpiar Chat</button>
+            </div>
+            <div class="loading" id="loading">Pensando...</div>
+        </div>
+    </div>
+
+    <div class="config-modal" id="config-modal">
+        <div class="config-content">
+            <h2>Configuración del Modelo</h2>
+            <form class="config-form" id="config-form">
+                <div class="form-group">
+                    <label for="temperature">Temperatura (0.0 - 2.0):</label>
+                    <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.7">
+                </div>
+                <div class="form-group">
+                    <label for="top_p">Top P (0.0 - 1.0):</label>
+                    <input type="number" id="top_p" min="0" max="1" step="0.1" value="0.9">
+                </div>
+                <div class="form-group">
+                    <label for="system_prompt">Prompt del Sistema:</label>
+                    <textarea id="system_prompt" placeholder="You are a helpful assistant."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="num_ctx">Contexto (tokens):</label>
+                    <input type="number" id="num_ctx" min="512" max="8192" step="512" value="2048">
+                </div>
+                <div class="form-group">
+                    <label for="repeat_penalty">Penalización de Repetición:</label>
+                    <input type="number" id="repeat_penalty" min="0.1" max="2" step="0.1" value="1.1">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="cancel-config">Cancelar</button>
+                    <button type="submit">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="config-modal" id="prompts-modal">
+        <div class="config-content">
+            <h2>Gestión de Prompts</h2>
+            <div class="form-group">
+                <label for="prompt-name">Nombre del Prompt:</label>
+                <input type="text" id="prompt-name" placeholder="Ej: Asistente de Código">
+            </div>
+            <div class="form-group">
+                <label for="prompt-description">Descripción (opcional):</label>
+                <input type="text" id="prompt-description" placeholder="Descripción del prompt">
+            </div>
+            <div class="form-group">
+                <label for="new-prompt">Prompt del Sistema:</label>
+                <textarea id="new-prompt" placeholder="Escribe tu prompt aquí..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="save-prompt">Guardar Prompt</button>
+                <button type="button" class="btn-secondary" id="cancel-prompts">Cancelar</button>
+            </div>
+            
+            <hr style="margin: 1rem 0; border-color: #404040;">
+            
+            <h3>Prompts Guardados</h3>
+            <div id="prompts-list" style="max-height: 200px; overflow-y: auto; margin-top: 1rem;">
+                <!-- Prompts will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const stopButton = document.getElementById('stop-button');
+        const clearButton = document.getElementById('clear-button');
+        const modelSelect = document.getElementById('model-select');
+        const loading = document.getElementById('loading');
+        
+        let currentModel = 'llama3.2';
+        let currentController = null;
+        let isGenerating = false;
+        
+        async function loadModels() {
+            try {
+                const response = await fetch('/models');
+                const data = await response.json();
+                
+                modelSelect.innerHTML = '';
+                data.models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = model.name;
+                    modelSelect.appendChild(option);
+                });
+                
+                if (data.models.length > 0) {
+                    currentModel = data.models[0].name;
+                    modelSelect.value = currentModel;
+                }
+            } catch (error) {
+                console.error('Error loading models:', error);
+            }
+        }
+        
+        function addMessage(content, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.textContent = content;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            return messageDiv;
+        }
+        
+        function updateMessage(messageDiv, content) {
+            messageDiv.textContent = content;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            messagesContainer.appendChild(errorDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function clearChat() {
+            messagesContainer.innerHTML = '';
+            addMessage('Chat limpiado. El contexto se ha reiniciado.', false);
+        }
+
+        function stopGeneration() {
+            if (currentController) {
+                currentController.abort();
+                currentController = null;
+            }
+            isGenerating = false;
+            sendButton.disabled = false;
+            stopButton.style.display = 'none';
+            sendButton.style.display = 'inline-block';
+            loading.style.display = 'none';
+            
+            const lastMessage = messagesContainer.lastElementChild;
+            if (lastMessage && lastMessage.classList.contains('bot-message')) {
+                const content = lastMessage.textContent;
+                if (content === '') {
+                    lastMessage.textContent = '[Respuesta detenida]';
+                    lastMessage.style.fontStyle = 'italic';
+                    lastMessage.style.color = '#888';
+                } else {
+                    lastMessage.textContent += ' [Detenido]';
+                    const stoppedSpan = document.createElement('span');
+                    stoppedSpan.textContent = ' [Detenido]';
+                    stoppedSpan.style.fontStyle = 'italic';
+                    stoppedSpan.style.color = '#888';
+                    lastMessage.appendChild(stoppedSpan);
+                }
+            }
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isGenerating) return;
+            
+            addMessage(message, true);
+            messageInput.value = '';
+            
+            isGenerating = true;
+            sendButton.disabled = true;
+            sendButton.style.display = 'none';
+            stopButton.style.display = 'inline-block';
+            loading.style.display = 'block';
+            
+            const botMessageDiv = addMessage('', false);
+            let botResponse = '';
+            
+            currentController = new AbortController();
+            
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        model: currentModel
+                    }),
+                    signal: currentController.signal
+                });
+                
+                if (response.ok) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    while (true) {
+                        if (currentController.signal.aborted) {
+                            break;
+                        }
+                        
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    if (data.response) {
+                                        botResponse += data.response;
+                                        updateMessage(botMessageDiv, botResponse);
+                                    }
+                                    if (data.error) {
+                                        showError(data.error);
+                                    }
+                                    if (data.done) {
+                                        break;
+                                    }
+                                } catch (e) {
+                                    // Ignore JSON parse errors
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    showError('Error al comunicarse con el servidor');
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    // Request was aborted, this is expected
+                } else {
+                    showError('Error de conexión: ' + error.message);
+                }
+            } finally {
+                isGenerating = false;
+                sendButton.disabled = false;
+                stopButton.style.display = 'none';
+                sendButton.style.display = 'inline-block';
+                loading.style.display = 'none';
+                currentController = null;
+            }
+        }
+        
+        sendButton.addEventListener('click', sendMessage);
+        stopButton.addEventListener('click', stopGeneration);
+        clearButton.addEventListener('click', clearChat);
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !isGenerating) {
+                sendMessage();
+            }
+        });
+        
+        modelSelect.addEventListener('change', async (e) => {
+            currentModel = e.target.value;
+            try {
+                await fetch('/switch-model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: currentModel
+                    })
+                });
+                // Also update config file
+                await fetch('/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: currentModel
+                    })
+                });
+            } catch (error) {
+                console.error('Error switching model:', error);
+            }
+        });
+        
+        // Configuration management
+        const configButton = document.getElementById('config-button');
+        const configModal = document.getElementById('config-modal');
+        const configForm = document.getElementById('config-form');
+        const cancelConfig = document.getElementById('cancel-config');
+        
+        async function loadConfig() {
+            try {
+                const response = await fetch('/config');
+                const config = await response.json();
+                
+                document.getElementById('temperature').value = config.temperature || 0.7;
+                document.getElementById('top_p').value = config.top_p || 0.9;
+                document.getElementById('system_prompt').value = config.system_prompt || '';
+                document.getElementById('num_ctx').value = config.num_ctx || 2048;
+                document.getElementById('repeat_penalty').value = config.repeat_penalty || 1.1;
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+        
+        async function saveConfig(config) {
+            try {
+                const response = await fetch('/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                if (response.ok) {
+                    alert('Configuración guardada exitosamente');
+                } else {
+                    alert('Error al guardar la configuración');
+                }
+            } catch (error) {
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        configButton.addEventListener('click', () => {
+            loadConfig();
+            configModal.style.display = 'block';
+        });
+        
+        cancelConfig.addEventListener('click', () => {
+            configModal.style.display = 'none';
+        });
+        
+        configModal.addEventListener('click', (e) => {
+            if (e.target === configModal) {
+                configModal.style.display = 'none';
+            }
+        });
+        
+        configForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const config = {
+                temperature: parseFloat(document.getElementById('temperature').value),
+                top_p: parseFloat(document.getElementById('top_p').value),
+                system_prompt: document.getElementById('system_prompt').value,
+                num_ctx: parseInt(document.getElementById('num_ctx').value),
+                repeat_penalty: parseFloat(document.getElementById('repeat_penalty').value)
+            };
+            
+            saveConfig(config);
+            configModal.style.display = 'none';
+        });
+        
+        // Prompts management
+        const promptsButton = document.getElementById('prompts-button');
+        const promptsModal = document.getElementById('prompts-modal');
+        const cancelPrompts = document.getElementById('cancel-prompts');
+        const savePromptButton = document.getElementById('save-prompt');
+        const promptsList = document.getElementById('prompts-list');
+        
+        async function loadPrompts() {
+            try {
+                const response = await fetch('/prompts');
+                const data = await response.json();
+                
+                promptsList.innerHTML = '';
+                
+                if (Object.keys(data.prompts).length === 0) {
+                    promptsList.innerHTML = '<p style="color: #888; text-align: center;">No hay prompts guardados</p>';
+                    return;
+                }
+                
+                Object.values(data.prompts).forEach(prompt => {
+                    const promptDiv = document.createElement('div');
+                    promptDiv.className = 'prompt-item';
+                    promptDiv.style.cssText = `
+                        background: #404040;
+                        border-radius: 4px;
+                        padding: 0.75rem;
+                        margin-bottom: 0.5rem;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-start;
+                        gap: 0.5rem;
+                    `;
+                    
+                    const contentDiv = document.createElement('div');
+                    contentDiv.style.flex = '1';
+                    contentDiv.innerHTML = `
+                        <div style="font-weight: bold; margin-bottom: 0.25rem;">${prompt.name}</div>
+                        <div style="font-size: 0.8rem; color: #ccc; margin-bottom: 0.25rem;">${prompt.description || ''}</div>
+                        <div style="font-size: 0.7rem; color: #888;">
+                            ${prompt.created_at ? new Date(prompt.created_at).toLocaleString() : ''}
+                            ${prompt.last_used ? ' • Último uso: ' + new Date(prompt.last_used).toLocaleString() : ''}
+                        </div>
+                    `;
+                    
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.style.display = 'flex';
+                    actionsDiv.style.gap = '0.25rem';
+                    actionsDiv.style.flexDirection = 'column';
+                    
+                    const useButton = document.createElement('button');
+                    useButton.textContent = 'Usar';
+                    useButton.style.cssText = 'background: #007acc; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.8rem;';
+                    useButton.addEventListener('click', () => usePrompt(prompt.id));
+                    
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Eliminar';
+                    deleteButton.style.cssText = 'background: #dc3545; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.8rem;';
+                    deleteButton.addEventListener('click', () => deletePrompt(prompt.id));
+                    
+                    actionsDiv.appendChild(useButton);
+                    actionsDiv.appendChild(deleteButton);
+                    
+                    promptDiv.appendChild(contentDiv);
+                    promptDiv.appendChild(actionsDiv);
+                    
+                    promptsList.appendChild(promptDiv);
+                });
+            } catch (error) {
+                console.error('Error loading prompts:', error);
+            }
+        }
+        
+        async function savePrompt() {
+            const name = document.getElementById('prompt-name').value.trim();
+            const description = document.getElementById('prompt-description').value.trim();
+            const prompt = document.getElementById('new-prompt').value.trim();
+            
+            if (!name || !prompt) {
+                alert('Por favor, completa el nombre y el prompt');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/prompts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        prompt: prompt
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Prompt guardado exitosamente');
+                    document.getElementById('prompt-name').value = '';
+                    document.getElementById('prompt-description').value = '';
+                    document.getElementById('new-prompt').value = '';
+                    loadPrompts();
+                } else {
+                    alert('Error al guardar el prompt');
+                }
+            } catch (error) {
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        async function usePrompt(promptId) {
+            try {
+                const response = await fetch('/prompts/use', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt_id: promptId
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`Prompt "${data.prompt.name}" aplicado exitosamente`);
+                    loadConfig();
+                    loadPrompts();
+                } else {
+                    alert('Error al aplicar el prompt');
+                }
+            } catch (error) {
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        async function deletePrompt(promptId) {
+            if (!confirm('¿Estás seguro de que quieres eliminar este prompt?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/prompts/${promptId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('Prompt eliminado exitosamente');
+                    loadPrompts();
+                } else {
+                    alert('Error al eliminar el prompt');
+                }
+            } catch (error) {
+                alert('Error de conexión: ' + error.message);
+            }
+        }
+        
+        promptsButton.addEventListener('click', () => {
+            loadPrompts();
+            promptsModal.style.display = 'block';
+        });
+        
+        cancelPrompts.addEventListener('click', () => {
+            promptsModal.style.display = 'none';
+        });
+        
+        promptsModal.addEventListener('click', (e) => {
+            if (e.target === promptsModal) {
+                promptsModal.style.display = 'none';
+            }
+        });
+        
+        savePromptButton.addEventListener('click', savePrompt);
+        
+        loadModels();
+        loadConfig();
+    </script>
+</body>
+</html>
